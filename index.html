@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>J.A.R.V.I.S.</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #0c0c0c;
+      color: #00ffcc;
+      text-align: center;
+      padding: 50px;
+    }
+    button {
+      padding: 15px 30px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      background-color: #1a1a1a;
+      color: #00ffcc;
+      cursor: pointer;
+    }
+    #response {
+      margin-top: 30px;
+      font-size: 20px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>J.A.R.V.I.S.</h1>
+  <p>Di "Jarvis" para activar el asistente</p>
+  <div id="response"></div>
+  <audio id="start-sound" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
+  <audio id="end-sound" src="https://actions.google.com/sounds/v1/cartoon/pop.ogg"></audio>
+
+  <script>
+    const synth = window.speechSynthesis;
+    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    recognition.lang = 'es-ES';
+    recognition.continuous = true;
+    recognition.interimResults = false;
+
+    const startSound = document.getElementById('start-sound');
+    const endSound = document.getElementById('end-sound');
+
+    let isListening = false;
+    let listeningTimeout = null;
+
+    function speak(text) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'es-ES';
+      synth.speak(utterance);
+    }
+
+    function processCommand(command) {
+      document.getElementById('response').innerText = '🧠 Pensando...';
+      getGPTResponse(command).then(reply => {
+        document.getElementById('response').innerText = `Tú: ${command}\nJARVIS: ${reply}`;
+        speak(reply);
+        isListening = false;
+        endSound.play();
+      });
+    }
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
+      console.log("Escuchado:", transcript);
+
+      if (!isListening && transcript.includes("jarvis")) {
+        isListening = true;
+        startSound.play();
+        speak("¿Sí?");
+
+        // 8 segundos para hablar
+        clearTimeout(listeningTimeout);
+        listeningTimeout = setTimeout(() => {
+          isListening = false;
+          endSound.play();
+          console.log("Tiempo de escucha terminado.");
+        }, 8000);
+      } else if (isListening) {
+        clearTimeout(listeningTimeout);
+        processCommand(transcript);
+      }
+    };
+
+    recognition.onerror = (event) => {
+      console.error("Error en reconocimiento:", event.error);
+    };
+
+    recognition.onend = () => {
+      recognition.start();
+    };
+
+    recognition.start();
+
+    async function getGPTResponse(prompt) {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer TU_API_KEY_AQUI'
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            { role: 'system', content: 'Eres J.A.R.V.I.S., un asistente útil y con un toque sarcástico elegante.' },
+            { role: 'user', content: prompt }
+          ]
+        })
+      });
+
+      const data = await response.json();
+      return data.choices[0].message.content;
+    }
+  </script>
+</body>
+</html>
